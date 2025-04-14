@@ -2,6 +2,11 @@ name: Download and Quantize Hugging Face Model
 
 on:
   workflow_dispatch:
+    inputs:
+      model_name:
+        description: 'Hugging Face Model Repository ID (e.g., gpt2, bert-base-uncased)'
+        required: true
+        default: 'gpt2'  # 设置一个默认值
 
 jobs:
   download_and_quantize:
@@ -30,8 +35,8 @@ jobs:
         login(token="${{ secrets.HF_TOKEN }}")
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        # Load model and tokenizer
-        model_name = 'huggingface_model_name'  # replace with your model's name
+        # Get the model name from the input
+        model_name = "${{ github.event.inputs.model_name }}"  # 从输入获取模型仓库 ID
         model = AutoModelForCausalLM.from_pretrained(model_name)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
