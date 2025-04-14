@@ -1,4 +1,4 @@
-AI-generate
+AI-Generate (Powerd by OpenAI)
 # HF-to-GGUF Converter (with Quantization)
 
 This GitHub Action workflow automates the process of:
