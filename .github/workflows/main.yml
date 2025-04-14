@@ -74,7 +74,7 @@ jobs:
         mkdir -p ../quantized
         IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
         for level in "${LEVELS[@]}"; do
-           ./llama-bin/build/bin/llama-quantize ../converted/model.gguf ../quantized/model.${level}.gguf $level 4
+           cd llama-bin/build/bin/ && ./llama-quantize ../../../../../converted/model.gguf ../../../../../quantized/model.${level}.gguf $level 4
         done
 
     - name: Upload Quantized Models
