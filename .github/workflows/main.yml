@@ -1,55 +1,58 @@
-name: Convert HF Model to GGUF
+name: Download and Quantize Hugging Face Model
 
 on:
   workflow_dispatch:
-    inputs:
-      repo_id:
-        description: 'HuggingFace repo ID (e.g., meta-llama/Llama-2-7b-hf)'
-        required: true
-      revision:
-        description: 'Optional revision (e.g., main or commit hash)'
-        required: false
 
 jobs:
-  convert:
+  download_and_quantize:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout your repo
-      uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v2
       with:
-        python-version: '3.10'
+        python-version: '3.8'
 
     - name: Install dependencies
       run: |
-        pip install torch transformers sentencepiece huggingface_hub
+        pip install transformers huggingface_hub bitsandbytes
 
-    - name: Download model from Hugging Face
+    - name: Authenticate to Hugging Face
       run: |
-        mkdir -p hf-model
-        if [ -z "${{ github.event.inputs.revision }}" ]; then
-          python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', local_dir='hf-model')"
-        else
-          python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.revision }}', local_dir='hf-model')"
-        fi
+        echo "HUGGINGFACE_TOKEN=${{ secrets.HF_TOKEN }}" >> $GITHUB_ENV
 
-    - name: Clone llama.cpp
+    - name: Download the model from Hugging Face
       run: |
-        git clone https://github.com/ggml-org/llama.cpp.git
-        cd llama.cpp
-        pip install -r requirements.txt
+        from huggingface_hub import login
+        login(token="${{ secrets.HF_TOKEN }}")
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    - name: Convert to GGUF
+        # Load model and tokenizer
+        model_name = 'huggingface_model_name'  # replace with your model's name
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        # Save the model and tokenizer (optional)
+        model.save_pretrained('./model')
+        tokenizer.save_pretrained('./model')
+
+    - name: Quantize the model to Q4_K_M
       run: |
-        mkdir -p converted
-        cd llama.cpp
-        python3 convert-hf-to-gguf.py ../hf-model --outfile ../converted/model.gguf
+        from transformers import AutoModelForCausalLM
+        import bitsandbytes as bnb
+        
+        # Load the model
+        model_name = './model'  # path to the model directory
+        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb.optim.GlobalQuantConfig(4))
 
-    - name: Upload GGUF model
-      uses: actions/upload-artifact@v4
+        # Save the quantized model
+        model.save_pretrained('./quantized_model')
+
+    - name: Upload Quantized Model
+      uses: actions/upload-artifact@v2
       with:
-        name: gguf-model
-        path: converted/model.gguf
+        name: quantized-model
+        path: ./quantized_model
