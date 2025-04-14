@@ -1,63 +1,73 @@
-name: Download and Quantize Hugging Face Model
+name: Convert HF Model to GGUF and Quantize (Multi-Precision)
 
 on:
   workflow_dispatch:
     inputs:
-      model_name:
-        description: 'Hugging Face Model Repository ID (e.g., gpt2, bert-base-uncased)'
+      repo_id:
+        description: 'Hugging Face model repo ID (e.g., TheBloke/Mistral-7B-Instruct-v0.1)'
         required: true
-        default: 'gpt2'  # 设置一个默认值
+      branch:
+        description: 'Branch name (default: main)'
+        required: false
+        default: 'main'
+      quantization_levels:
+        description: 'Comma-separated list of quantization types (e.g., Q4_K_M,Q5_K_M,Q8_0)'
+        required: false
+        default: 'Q4_K_M'
 
 jobs:
-  download_and_quantize:
+  convert:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.8'
+        python-version: '3.10'
 
-    - name: Install dependencies
+    - name: Install Python Dependencies
       run: |
-        pip install transformers huggingface_hub bitsandbytes
+        pip install -U huggingface_hub transformers sentencepiece
 
-    - name: Authenticate to Hugging Face
+    - name: Authenticate HF
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        echo "HUGGINGFACE_TOKEN=${{ secrets.HF_TOKEN }}" >> $GITHUB_ENV
+        echo "HUGGINGFACE_TOKEN=${HF_TOKEN}" >> $GITHUB_ENV
 
-    - name: Download the model from Hugging Face
+    - name: Download model from Hugging Face
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        from huggingface_hub import login
-        login(token="${{ secrets.HF_TOKEN }}")
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.branch }}', token='${{ secrets.HF_TOKEN }}', local_dir='hf-model', local_dir_use_symlinks=False)"
 
-        # Get the model name from the input
-        model_name = "${{ github.event.inputs.model_name }}"  # 从输入获取模型仓库 ID
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        # Save the model and tokenizer (optional)
-        model.save_pretrained('./model')
-        tokenizer.save_pretrained('./model')
 
-    - name: Quantize the model to Q4_K_M
+    - name: Clone llama.cpp
       run: |
-        from transformers import AutoModelForCausalLM
-        import bitsandbytes as bnb
-        
-        # Load the model
-        model_name = './model'  # path to the model directory
-        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb.optim.GlobalQuantConfig(4))
+        git clone https://github.com/ggml-org/llama.cpp.git
+        cd llama.cpp
+        pip install -r requirements.txt
 
-        # Save the quantized model
-        model.save_pretrained('./quantized_model')
+    - name: Convert to GGUF
+      run: |
+        cd llama.cpp
+        mkdir -p ../converted
+        python3 convert_hf_to_gguf.py ../hf-model --outfile ../converted/model.gguf
 
-    - name: Upload Quantized Model
-      uses: actions/upload-artifact@v2
+    - name: Quantize to Multiple Levels
+      run: |
+        cd llama.cpp
+        mkdir -p ../quantized
+        IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
+        for level in "${LEVELS[@]}"; do
+          ./quantize ../converted/model.gguf ../quantized/model.${level}.gguf $level
+        done
+
+    - name: Upload Quantized Models
+      uses: actions/upload-artifact@v4
       with:
-        name: quantized-model
-        path: ./quantized_model
+        name: quantized-gguf-models
+        path: quantized/*.gguf
