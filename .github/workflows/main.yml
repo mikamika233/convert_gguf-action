@@ -71,11 +71,13 @@ jobs:
 
     - name: Quantize to Multiple Levels
       run: |
-        mkdir -p ../quantized
+        mkdir -p quantized
+        QUANT_BIN=$(find llama-bin -type f -name "llama-quantize")
         IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
         for level in "${LEVELS[@]}"; do
-           cd llama-bin/build/bin/ && ./llama-quantize ../../../../converted/model.gguf ../../../../quantized/model.${level}.gguf $level 4
+          $QUANT_BIN converted/model.gguf quantized/model.${level}.gguf $level 4
         done
+
 
     - name: Upload Quantized Models
       uses: actions/upload-artifact@v4
