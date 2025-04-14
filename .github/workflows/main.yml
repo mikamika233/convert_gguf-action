@@ -44,6 +44,18 @@ jobs:
       run: |
         python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.branch }}', token='${{ secrets.HF_TOKEN }}', local_dir='hf-model', local_dir_use_symlinks=False)"
 
+    - name: Download latest llama.cpp binaries
+      run: |
+        mkdir -p llama-bin
+        LATEST_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest \
+          | grep "llama-.*-ubuntu-x64.zip" \
+          | grep "browser_download_url" \
+          | cut -d '"' -f 4)
+        echo "Downloading from: $LATEST_URL"
+        wget -q "$LATEST_URL" -O llama-bin/llama-bin.zip
+        unzip -q llama-bin/llama-bin.zip -d llama-bin
+        chmod +x llama-bin/*
+
 
     - name: Clone llama.cpp
       run: |
@@ -63,7 +75,7 @@ jobs:
         mkdir -p ../quantized
         IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
         for level in "${LEVELS[@]}"; do
-          ./quantize ../converted/model.gguf ../quantized/model.${level}.gguf $level
+           ./llama-bin/quantize ../converted/model.gguf ../quantized/model.${level}.gguf $level
         done
 
     - name: Upload Quantized Models
