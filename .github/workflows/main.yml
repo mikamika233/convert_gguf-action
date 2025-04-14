@@ -1,17 +1,14 @@
-name: Convert safetensors to GGUF
+name: Convert HF Model to GGUF
 
 on:
   workflow_dispatch:
     inputs:
-      model_url:
-        description: 'URL of model.safetensors'
+      repo_id:
+        description: 'HuggingFace repo ID (e.g., meta-llama/Llama-2-7b-hf)'
         required: true
-      config_url:
-        description: 'URL of config.json'
-        required: true
-      tokenizer_url:
-        description: 'URL of tokenizer.model or tokenizer.json'
-        required: true
+      revision:
+        description: 'Optional revision (e.g., main or commit hash)'
+        required: false
 
 jobs:
   convert:
@@ -26,30 +23,20 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install Python dependencies
+    - name: Install dependencies
       run: |
-        pip install torch transformers sentencepiece
+        pip install torch transformers sentencepiece huggingface_hub
 
-    - name: Download HuggingFace model files
+    - name: Download model from Hugging Face
       run: |
         mkdir -p hf-model
-        wget -O hf-model/model.safetensors "${{ github.event.inputs.model_url }}"
-        wget -O hf-model/config.json "${{ github.event.inputs.config_url }}"
-        wget -O hf-model/tokenizer.model "${{ github.event.inputs.tokenizer_url }}"
-
-    - name: Detect tokenizer file type
-      id: detect_tokenizer
-      run: |
-        # Detect tokenizer file type (either tokenizer.model or tokenizer.json)
-        if [[ -f "hf-model/tokenizer.model" ]]; then
-          echo "tokenizer_type=tokenizer.model" >> $GITHUB_ENV
-        elif [[ -f "hf-model/tokenizer.json" ]]; then
-          echo "tokenizer_type=tokenizer.json" >> $GITHUB_ENV
+        if [ -z "${{ github.event.inputs.revision }}" ]; then
+          python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', local_dir='hf-model')"
         else
-          echo "No tokenizer file found!" && exit 1
+          python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.revision }}', local_dir='hf-model')"
         fi
 
-    - name: Clone llama.cpp (ggml-org)
+    - name: Clone llama.cpp
       run: |
         git clone https://github.com/ggml-org/llama.cpp.git
         cd llama.cpp
@@ -57,12 +44,9 @@ jobs:
 
     - name: Convert to GGUF
       run: |
+        mkdir -p converted
         cd llama.cpp
-        if [[ "$TOKENIZER_TYPE" == "tokenizer.model" ]]; then
-          python3 convert_hf_to_gguf.py --outfile ../converted/model.gguf --tokenizer_path ../hf-model/tokenizer.model ../hf-model/
-        elif [[ "$TOKENIZER_TYPE" == "tokenizer.json" ]]; then
-          python3 convert_hf_to_gguf.py --outfile ../converted/model.gguf --tokenizer_path ../hf-model/tokenizer.json ../hf-model/
-        fi
+        python3 convert-hf-to-gguf.py ../hf-model --outfile ../converted/model.gguf
 
     - name: Upload GGUF model
       uses: actions/upload-artifact@v4
