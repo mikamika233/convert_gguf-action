@@ -71,7 +71,6 @@ jobs:
 
     - name: Quantize to Multiple Levels
       run: |
-        cd llama.cpp
         mkdir -p ../quantized
         IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
         for level in "${LEVELS[@]}"; do
