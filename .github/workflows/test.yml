@@ -1,0 +1,52 @@
+name: Convert safetensors to GGUF (Manual Download)
+
+on:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Comma-separated list of all required model files (e.g., .safetensors, config.json, tokenizer.*)'
+        required: true
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout your repo
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Python dependencies
+      run: |
+        pip install torch transformers sentencepiece
+
+    - name: Download all model files
+      run: |
+        mkdir -p hf-model
+        IFS=',' read -r -a urls <<< "${{ github.event.inputs.files }}"
+        for url in "${urls[@]}"; do
+          echo "Downloading $url"
+          wget -q -P hf-model "$url"
+        done
+
+    - name: Clone llama.cpp (ggml-org)
+      run: |
+        git clone https://github.com/ggml-org/llama.cpp.git
+        cd llama.cpp
+        pip install -r requirements.txt
+
+    - name: Convert to GGUF
+      run: |
+        mkdir -p converted
+        cd llama.cpp
+        python3 convert-hf-to-gguf.py ../hf-model --outfile ../converted/model.gguf
+
+    - name: Upload GGUF model
+      uses: actions/upload-artifact@v4
+      with:
+        name: gguf-model
+        path: converted/model.gguf
