@@ -75,7 +75,7 @@ jobs:
         cd llama-bin/build/bin/
         IFS=',' read -ra LEVELS <<< "${{ github.event.inputs.quantization_levels }}"
         for level in "${LEVELS[@]}"; do
-          ./llama-quantize ../../../converted/model.gguf ../../../quantized/model.${level}.gguf $level 4
+          ./llama-quantize --pure ../../../converted/model.gguf ../../../quantized/model.${level}.gguf $level 4
         done
 
 
