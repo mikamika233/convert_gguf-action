@@ -56,7 +56,6 @@ jobs:
         unzip -q llama-bin/llama-bin.zip -d llama-bin
         chmod +x llama-bin/*
 
-
     - name: Clone llama.cpp
       run: |
         git clone https://github.com/ggml-org/llama.cpp.git
@@ -78,10 +77,28 @@ jobs:
           ./llama-quantize --pure ../../../converted/model.gguf ../../../quantized/model.${level}.gguf $level 4
         done
 
-
-
     - name: Upload Quantized Models
       uses: actions/upload-artifact@v4
       with:
         name: quantized-gguf-models
         path: quantized/*.gguf
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: 'Automated release for converted and quantized GGUF model'
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: quantized/model.Q4_K_M.gguf
+        asset_name: model.Q4_K_M.gguf
+        asset_content_type: application/zip
