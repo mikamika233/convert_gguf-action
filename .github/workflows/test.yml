@@ -49,4 +49,26 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: gguf-model
-        path: converted/model.gguf
+        path: converted/*.gguf
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: elgohr/github-release-action@v3
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: 'Automated release for converted GGUF model'
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload release assets
+      run: |
+        for file in converted/*.gguf; do
+          echo "Uploading $file"
+          curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @$file \
+            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$(basename $file)
+        done
