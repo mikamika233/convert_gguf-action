@@ -42,7 +42,7 @@ jobs:
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.branch }}', token='${{ secrets.HF_TOKEN }}', local_dir='hf-model', local_dir_use_symlinks=False)"
+        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${{ github.event.inputs.repo_id }}', revision='${{ github.event.inputs.branch }}', token='${{ secrets.HF_TOKEN }}', local_dir='hf-model')"
 
     - name: Download latest llama.cpp binaries
       run: |
