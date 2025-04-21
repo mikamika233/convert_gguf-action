@@ -13,7 +13,7 @@ on:
       quantization_levels:
         description: 'Comma-separated list of quantization types (e.g., Q4_K_M,Q5_K_M,Q8_0)'
         required: false
-        default: 'Q4_K_M'
+        default: 'Q4_0'
 
 jobs:
   convert:
@@ -30,7 +30,7 @@ jobs:
 
     - name: Install Python Dependencies
       run: |
-        pip install -U huggingface_hub transformers sentencepiece
+        pip install -U huggingface_hub transformers sentencepiece hf_xet
 
     - name: Authenticate HF
       env:
