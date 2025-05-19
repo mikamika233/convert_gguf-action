@@ -61,7 +61,7 @@ jobs:
       run: |
         echo "Quantization Level: ${{ github.event.inputs.quant_level }}"
         python llama.cpp/convert_hf_to_gguf.py \
-          ./models/${{ github.event.inputs.model_filename }} \
+          ./models/ \
           --outfile ./output/model-${{ github.event.inputs.quant_level }}.gguf \
           --outtype ${{ github.event.inputs.quant_level }}
 
