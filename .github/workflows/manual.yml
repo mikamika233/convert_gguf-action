@@ -1,0 +1,72 @@
+name: Download and Convert Safetensors to GGUF (Quantized)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_url:
+        description: 'URL of the .safetensors model'
+        required: true
+        type: string
+      model_filename:
+        description: 'Optional filename to save (default: model.safetensors)'
+        required: false
+        default: 'model.safetensors'
+      quant_level:
+        description: 'Quantization level (e.g. fp16, int8, q4_0, q4_k_m)'
+        required: false
+        default: 'fp16'  # 默认保留精度
+
+jobs:
+  download-and-convert:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Download latest llama.cpp binaries
+      run: |
+        mkdir -p llama-bin
+        LATEST_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest \
+          | grep "llama-.*-ubuntu-x64.zip" \
+          | grep "browser_download_url" \
+          | cut -d '"' -f 4)
+        echo "Downloading from: $LATEST_URL"
+        wget -q "$LATEST_URL" -O llama-bin/llama-bin.zip
+        unzip -q llama-bin/llama-bin.zip -d llama-bin
+        chmod +x llama-bin/*
+
+    - name: Clone llama.cpp
+      run: |
+        git clone https://github.com/ggml-org/llama.cpp.git
+        cd llama.cpp
+        pip install -r requirements.txt
+
+    - name: Create directories
+      run: |
+        mkdir -p models
+        mkdir -p output
+
+    - name: Download model file
+      run: |
+        echo "Downloading from: ${{ github.event.inputs.model_url }}"
+        curl -L "${{ github.event.inputs.model_url }}" -o "models/${{ github.event.inputs.model_filename }}"
+
+    - name: Convert safetensors to gguf with quantization
+      run: |
+        echo "Quantization Level: ${{ github.event.inputs.quant_level }}"
+        python convert_hf_to_gguf.py \
+          ./models/${{ github.event.inputs.model_filename }} \
+          --outfile ./output/model-${{ github.event.inputs.quant_level }}.gguf \
+          --outtype ${{ github.event.inputs.quant_level }}
+
+    - name: Upload converted model artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gguf-model-${{ github.event.inputs.quant_level }}
+        path: ./output/model-${{ github.event.inputs.quant_level }}.gguf
